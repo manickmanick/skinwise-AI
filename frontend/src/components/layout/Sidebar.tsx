@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
+import { useAuth } from "../../app/auth/useAuth";
 
 const items = [
   { label: "Overview", to: "/", icon: "⌂" },
@@ -9,6 +10,8 @@ const items = [
 ];
 
 export default function Sidebar() {
+  const { user, signOut } = useAuth();
+  const visibleItems = user ? items : items.slice(0, 2);
   return (
     <aside className="app-sidebar" aria-label="Main navigation">
       <NavLink to="/" className="brand">
@@ -22,7 +25,7 @@ export default function Sidebar() {
       </NavLink>
       <p className="nav-caption">YOUR WORKSPACE</p>
       <nav className="sidebar-links">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -46,7 +49,24 @@ export default function Sidebar() {
         <p>Small steps. Thoughtful care.</p>
       </div>
       <div className="sidebar-footer">
-        <span className="status-dot" /> SkinWise AI <span>UI preview</span>
+        {user ? (
+          <>
+            <span className="status-dot" />{" "}
+            <span className="sidebar-account">{user.email}</span>
+            <button
+              className="sidebar-signout"
+              type="button"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="status-dot" /> SkinWise AI{" "}
+            <Link to="/login">Sign in</Link>
+          </>
+        )}
       </div>
     </aside>
   );
