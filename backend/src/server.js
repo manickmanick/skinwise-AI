@@ -1,7 +1,16 @@
-
 import dotenv from "dotenv";
 
 dotenv.config();
+
+if (
+  process.env.NODE_ENV === "production" &&
+  (!process.env.SESSION_SECRET ||
+    Buffer.byteLength(process.env.SESSION_SECRET) < 32)
+) {
+  throw new Error(
+    "SESSION_SECRET must contain at least 32 bytes in production.",
+  );
+}
 
 const { default: app } = await import("./app.js");
 

@@ -1,150 +1,91 @@
 
 # SkinWise AI
 
-A responsive AI-powered skincare web application MVP.
+SkinWise AI is a responsive skincare application with guest YouCam analysis and account-backed skin profiles, routines, checklists and analysis history.
 
-## Technology Stack
+## Stack
 
-- Frontend: React, TypeScript, Vite
-- Backend: Node.js, Express
-- Database: PostgreSQL (planned)
-- AI integration: YouCam Skin Analysis API (planned)
+- Frontend: React, TypeScript, Vite, React Router
+- Backend: Node.js, Express 5, JavaScript ES modules
+- Database: MySQL 8 or a compatible MySQL server, accessed with `mysql2`
+- Migrations: Knex
+- Skin analysis: YouCam Skin Analysis API, called only from the backend
+- Optional UV forecasts: Open-Meteo geocoding and forecast APIs
 
-## Phase 1 Scope
+## Local setup (Windows PowerShell)
 
-- Responsive starter interface
-- Skin Profile placeholder
-- Skin Analysis placeholder
-- My Routine placeholder
-- Progress Tracking placeholder
-- Backend health endpoint
-- Frontend-to-backend HTTP communication
-- Environment-based configuration
+Prerequisites: Node.js 20 or newer, npm, and a running MySQL server.
 
-No real skin analysis is implemented in this phase.
+Create a database and a local application user in MySQL (choose your own password):
 
-## Prerequisites
-
-- Node.js LTS and npm
-- Git (optional)
-
-## Project Structure
-
-```text
-SkinWise-AI/
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── App.css
-│   │   ├── api.ts
-│   │   ├── index.css
-│   │   └── main.tsx
-│   ├── .env.example
-│   └── package.json
-├── backend/
-│   ├── src/
-│   │   └── server.js
-│   ├── .env.example
-│   ├── .gitignore
-│   └── package.json
-├── .gitignore
-└── README.md
+```sql
+CREATE DATABASE skinwise_ai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'skinwise_app'@'localhost' IDENTIFIED BY 'choose-a-local-password';
+GRANT ALL PRIVILEGES ON skinwise_ai.* TO 'skinwise_app'@'localhost';
 ```
 
-## Windows Setup
-
-Run the following commands from the project root.
-
-### 1. Install frontend dependencies
-
-```powershell
-cd frontend
-npm install
-Copy-Item .env.example .env
-```
-
-### 2. Install backend dependencies
-
-Open another PowerShell terminal from the project root:
+Install dependencies and copy the example configurations only when a local `.env` does not already exist:
 
 ```powershell
 cd backend
 npm install
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-If a `.env` file already exists, preserve your existing configuration.
+Set the database values and `YOUCAM_API_KEY` in `backend/.env`. Set `SESSION_SECRET` to a random secret of at least 32 bytes. Keep this file private; it is excluded from Git.
 
-## Run the Applications
-
-### Backend
-
-In a PowerShell terminal:
+Run the versioned database migrations and start the API:
 
 ```powershell
-cd backend
+npm run migrate
 npm run dev
 ```
 
-Backend URL: http://localhost:3000
-
-Health endpoint: http://localhost:3000/api/health
-
-### Frontend
-
-In a second PowerShell terminal:
+In a second terminal:
 
 ```powershell
 cd frontend
+npm install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm run dev
 ```
 
-Open the local URL printed by Vite, normally:
+The Vite app normally runs at `http://localhost:5173`; the backend listens on port `3000`. The frontend uses `VITE_API_BASE_URL` and must never contain provider keys or database credentials.
 
-http://localhost:5173
+## API and database commands
 
-## Test the Backend
+From `backend/`:
 
-Open this URL in your browser:
+- `npm run migrate` applies migrations.
+- `npm run rollback` rolls back the most recent migration.
+- `npm test` runs deterministic business-logic tests.
+- `GET /api/health/live` checks process liveness.
+- `GET /api/health/ready` checks MySQL readiness.
 
-http://localhost:3000/api/health
+The first migration creates the server-side `sessions` table, accounts, preferences, profiles, analysis history, routine versions, and checklist records. Do not edit production schemas manually; add a versioned Knex migration instead.
 
-Expected JSON:
+## Core flows
 
-```json
-{
-  "status": "ok",
-  "application": "SkinWise AI",
-  "message": "Backend is running"
-}
-```
+- Guests can submit a JPEG or PNG photo, preview results and create an account. The backend validates image content, forwards the original bytes to YouCam and polls the provider task. Guest results are held only in the current browser page state.
+- Signed-in users can save a self-reported profile, generate conservative morning/night routine steps, check off steps, view adherence and streaks, save analyses and compare compatible provider metrics.
+- Profile, routines, analyses and checklist history are scoped to the signed-in account. Mutating requests use a session-bound CSRF token.
+- UV guidance is optional. A saved city is used for the forecast, or the user can explicitly request a one-time browser location check. Precise browser coordinates are sent for that forecast request and are not saved by SkinWise. Forecasts are from [Open-Meteo](https://open-meteo.com/) and its [geocoding API](https://open-meteo.com/en/docs/geocoding-api).
 
-## Environment Variables
+## Data collection and retention
 
-### Frontend
+- **Face photo:** held in backend memory for the request and transmitted to YouCam over HTTPS for processing. SkinWise does not store the photo. YouCam's separate retention and processing terms apply; configure and disclose those terms for your deployment.
+- **Guest analysis:** returned to the browser and kept in React memory while the page remains open. A refresh clears it. It is not inserted into the database.
+- **Account analysis:** supported metric fields and timestamp are saved in MySQL. Temporary provider mask URLs are excluded. History remains until the user deletes the account.
+- **Profile and routine:** questionnaire answers, timezone, optional city and versioned routine steps are saved for the account until account deletion.
+- **Checklist:** completion records are stored by routine step and the user's local calendar date; changing a routine does not rewrite earlier records.
+- **Session:** authentication is stored server-side in MySQL and represented in the browser by an HttpOnly cookie. Sessions expire after seven days; logout and account deletion revoke the account's sessions.
+- **Deletion:** the profile page provides account deletion. The database cascades account-owned records, and the API removes the account's sessions.
 
-`VITE_API_BASE_URL` is the backend's base URL.
+Analysis values are displayed as returned by YouCam. SkinWise does not interpret them as diagnoses or claim that a change is medically meaningful. Routine completion and skin analysis are displayed separately.
 
-Never put private API keys or database credentials in frontend
-environment variables.
+## Troubleshooting
 
-### Backend
-
-`PORT` configures the HTTP server port.
-
-`FRONTEND_URL` configures the permitted frontend origin for CORS.
-
-Keep real secrets in local environment variables and exclude them
-from Git.
-
-## Future Phases
-
-- Verify the official YouCam API documentation and authentication
-- Implement the verified YouCam integration on the backend
-- Add PostgreSQL and persistent storage
-- Build real skin profile and analysis workflows
-- Add routines and progress tracking
-
-## Development Status
-
-Phase 1: Project foundation and connectivity verification.
+- If `/api/health/ready` fails, check that MySQL is running, the database exists, and the `DB_*` values are correct.
+- If analysis reports an unavailable provider, check the backend `YOUCAM_API_KEY` and provider account. The key is never read from the frontend.
+- If the frontend cannot call the API, confirm `VITE_API_BASE_URL` and ensure `FRONTEND_URL` exactly matches the Vite origin.
+- Apply migrations after pulling schema changes with `npm run migrate` from `backend/`.
