@@ -1,0 +1,104 @@
+.progress-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.9fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  padding: clamp(1.2rem, 3vw, 2.5rem);
+}
+.progress-hero-copy h2 {
+  max-width: 14ch;
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  letter-spacing: -0.04em;
+}
+.progress-hero-copy > p:not(.eyebrow) {
+  max-width: 36rem;
+  line-height: 1.75;
+}
+.progress-hero-copy .app-button {
+  margin-top: 0.5rem;
+}
+.demo-chart {
+  position: relative;
+  min-height: 15rem;
+  padding: 1rem 0.5rem 2rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #f5f8f2;
+}
+.chart-grid {
+  position: absolute;
+  inset: 1rem 0.5rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.chart-grid span {
+  border-top: 0.0625rem dashed #d7e0d2;
+}
+.chart-bars {
+  position: absolute;
+  inset: 1.2rem 0.75rem 2.1rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 0.45rem;
+}
+.chart-bar-wrap {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.chart-bar {
+  display: block;
+  width: min(100%, 1.8rem);
+  min-height: 0.4rem;
+  border-radius: 0.5rem 0.5rem 0.15rem 0.15rem;
+  background: linear-gradient(180deg, #83a77b, #c1d2b8);
+}
+.chart-bar-wrap small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.chart-caption {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.progress-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.progress-stat-grid .app-card {
+  display: grid;
+  gap: 0.55rem;
+}
+.progress-stat-grid strong {
+  font-size: 1.8rem;
+}
+.progress-stat-grid small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (max-width: 58rem) {
+  .progress-hero-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .demo-chart {
+    min-height: 13rem;
+  }
+}
+@media (max-width: 42rem) {
+  .progress-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
