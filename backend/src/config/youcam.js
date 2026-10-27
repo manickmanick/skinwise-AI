@@ -1,13 +1,11 @@
-
-const API_BASE_URL =
-  "https://yce-api-01.makeupar.com/s2s/v2.1";
+const API_BASE_URL = "https://yce-api-01.makeupar.com/s2s/v2.1";
 
 export function getYouCamConfig() {
   const apiKey = process.env.YOUCAM_API_KEY;
 
   if (!apiKey) {
     const error = new Error(
-      "YouCam API key is missing from backend environment."
+      "YouCam API key is missing from backend environment.",
     );
     error.statusCode = 500;
     throw error;

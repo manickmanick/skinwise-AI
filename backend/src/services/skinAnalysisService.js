@@ -1,8 +1,5 @@
-
-import {
-  getYouCamConfig,
-  SD_SKIN_CONCERNS,
-} from "../config/youcam.js";
+import { getYouCamConfig, SD_SKIN_CONCERNS } from "../config/youcam.js";
+import crypto from "node:crypto";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -32,9 +29,11 @@ async function parseJsonResponse(response) {
     });
 
     const error = new Error(
-      `YouCam returned HTTP ${response.status}.`
+      response.status === 429
+        ? "The skin analysis provider is busy. Please try again later."
+        : "The skin analysis provider could not complete the request.",
     );
-    error.statusCode = 502;
+    error.statusCode = response.status === 429 ? 503 : 502;
     throw error;
   }
 
@@ -59,27 +58,21 @@ async function youCamJsonRequest(url, apiKey, body) {
 }
 
 async function createUploadRequest(file, metadata, config) {
-  const response = await youCamJsonRequest(
-    config.fileEndpoint,
-    config.apiKey,
-    {
-      files: [
-        {
-          content_type: metadata.mimeType,
-          file_name: file.originalname || "skin-photo",
-          file_size: file.buffer.length,
-        },
-      ],
-    }
-  );
+  const response = await youCamJsonRequest(config.fileEndpoint, config.apiKey, {
+    files: [
+      {
+        content_type: metadata.mimeType,
+        file_name: `skinwise-${crypto.randomUUID()}.${metadata.format === "jpeg" ? "jpg" : "png"}`,
+        file_size: file.buffer.length,
+      },
+    ],
+  });
 
   const fileInfo = response?.data?.files?.[0];
   const uploadRequest = fileInfo?.requests?.[0];
 
   if (!fileInfo?.file_id || !uploadRequest?.url) {
-    throw new Error(
-      "YouCam did not return the expected file upload details."
-    );
+    throw new Error("YouCam did not return the expected file upload details.");
   }
 
   return {
@@ -118,19 +111,15 @@ async function uploadOriginalImage(file, uploadRequest, metadata) {
 }
 
 async function startAnalysis(fileId, config) {
-  const response = await youCamJsonRequest(
-    config.taskEndpoint,
-    config.apiKey,
-    {
-      dst_actions: SD_SKIN_CONCERNS,
-      miniserver_args: {
-        enable_mask_overlay: false,
-      },
-      format: "json",
-      pf_camera_kit: false,
-      src_file_id: fileId,
-    }
-  );
+  const response = await youCamJsonRequest(config.taskEndpoint, config.apiKey, {
+    dst_actions: SD_SKIN_CONCERNS,
+    miniserver_args: {
+      enable_mask_overlay: false,
+    },
+    format: "json",
+    pf_camera_kit: false,
+    src_file_id: fileId,
+  });
 
   const taskId = response?.data?.task_id;
 
@@ -147,8 +136,7 @@ function wait(ms) {
 
 async function pollAnalysis(taskId, config) {
   for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
-    const url =
-      `${config.taskEndpoint}/${encodeURIComponent(taskId)}`;
+    const url = `${config.taskEndpoint}/${encodeURIComponent(taskId)}`;
 
     const response = await fetchWithTimeout(url, {
       method: "GET",
@@ -171,8 +159,7 @@ async function pollAnalysis(taskId, config) {
       });
 
       const error = new Error(
-        data.error_message ||
-        "YouCam could not process this image."
+        data.error_message || "YouCam could not process this image.",
       );
       error.statusCode = 422;
       throw error;
@@ -183,9 +170,7 @@ async function pollAnalysis(taskId, config) {
     }
   }
 
-  const error = new Error(
-    "Skin analysis took too long. Please try again."
-  );
+  const error = new Error("Skin analysis took too long. Please try again.");
   error.statusCode = 504;
   throw error;
 }
@@ -194,16 +179,31 @@ export async function analyzeSkinImage(file, metadata) {
   const config = getYouCamConfig();
 
   // Upload the original bytes. Never resize or re-encode here.
-  const { fileId, uploadRequest } = await createUploadRequest(
-    file,
-    metadata,
-    config
-  );
-
-  await uploadOriginalImage(file, uploadRequest, metadata);
-
-  const taskId = await startAnalysis(fileId, config);
-  const results = await pollAnalysis(taskId, config);
+  let results;
+  try {
+    const { fileId, uploadRequest } = await createUploadRequest(
+      file,
+      metadata,
+      config,
+    );
+    await uploadOriginalImage(file, uploadRequest, metadata);
+    const taskId = await startAnalysis(fileId, config);
+    results = await pollAnalysis(taskId, config);
+  } catch (error) {
+    if (error.name === "TimeoutError" || error.name === "AbortError") {
+      const timeout = new Error("Skin analysis timed out. Please try again.");
+      timeout.statusCode = 504;
+      throw timeout;
+    }
+    if (!error.statusCode) {
+      const provider = new Error(
+        "Skin analysis is temporarily unavailable. Please try again.",
+      );
+      provider.statusCode = 502;
+      throw provider;
+    }
+    throw error;
+  }
 
   return {
     image: {
