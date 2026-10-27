@@ -7,3 +7,4 @@
 @import "./features/skin-profile/styles/SkinProfilePage.css";
 @import "./features/routine/styles/RoutinePage.css";
 @import "./features/progress/styles/ProgressPage.css";
+@import "./features/core-flow.css";
