@@ -1,0 +1,114 @@
+.routine-notice {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.2rem;
+  border: 0.0625rem solid #eadfca;
+  border-radius: var(--radius-md);
+  background: #fbf5e9;
+  color: #715d3e;
+}
+.routine-notice > span {
+  font-size: 1.2rem;
+}
+.routine-notice p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+.routine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.routine-column-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding-bottom: 1rem;
+  border-bottom: 0.0625rem solid var(--border);
+}
+.routine-column-heading h2 {
+  margin: 0;
+}
+.routine-column-heading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+.routine-steps {
+  display: grid;
+}
+.routine-step {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: start;
+  padding-block: 1.2rem;
+  border-bottom: 0.0625rem solid var(--border);
+}
+.routine-step:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.step-number {
+  display: grid;
+  width: 2rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 0.65rem;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.routine-step h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.routine-step p {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+.step-time {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.routine-next {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.routine-next > div:nth-child(2) {
+  flex: 1;
+}
+.routine-next h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.routine-next p {
+  margin-bottom: 0;
+}
+@media (max-width: 55rem) {
+  .routine-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 42rem) {
+  .routine-next {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .routine-next .app-button {
+    width: 100%;
+  }
+  .routine-step {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+  .step-time {
+    grid-column: 2;
+  }
+}
