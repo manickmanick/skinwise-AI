@@ -17,9 +17,12 @@ import progressRoutes from "./routes/progressRoutes.js";
 import environmentRoutes from "./routes/environmentRoutes.js";
 import imageValidationRoutes from "./routes/imageValidationRoutes.js";
 
+
+
 const app = express();
 const sessionStore = new MySQLSessionStore();
 const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+
 
 app.disable("x-powered-by");
 app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false);
@@ -83,8 +86,10 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) =>
     res.status(429).json({
+      success: false,
       status: "error",
       message: "Too many sign-in attempts. Wait a little and try again.",
+      code: "RATE_LIMITED",
     }),
 });
 app.use("/api/auth/register", authLimiter);
@@ -99,7 +104,12 @@ app.use("/api/progress", requireUser, progressRoutes);
 app.use("/api/environment", requireUser, environmentRoutes);
 
 app.use((_req, res) =>
-  res.status(404).json({ status: "error", message: "Not found." }),
+  res.status(404).json({
+    success: false,
+    status: "error",
+    message: "Not found.",
+    code: "NOT_FOUND",
+  }),
 );
 app.use(errorHandler);
 

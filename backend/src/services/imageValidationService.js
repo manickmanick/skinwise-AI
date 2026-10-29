@@ -4,6 +4,7 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MIN_SD_SHORT_SIDE = 480;
 
 export async function validateSkinAnalysisImage(file) {
+
   if (!file?.buffer?.length) {
     throw createHttpError("Please upload an image.", 400);
   }
@@ -18,6 +19,7 @@ export async function validateSkinAnalysisImage(file) {
     metadata = await sharp(file.buffer, {
       limitInputPixels: 40_000_000,
     }).metadata();
+
   } catch {
     throw createHttpError("The uploaded file is not a valid image.", 400);
   }

@@ -3,6 +3,12 @@ import crypto from "node:crypto";
 import { pool } from "../config/database.js";
 import { generateRoutine } from "../services/routineEngine.js";
 import { localDateFor, qualifiesDay } from "../utils/dates.js";
+import { validate } from "../middleware/validate.js";
+import {
+  completionParamSchema,
+  completionSchema,
+  emptyBodySchema,
+} from "../validators/authSchemas.js";
 
 const router = Router();
 
@@ -44,7 +50,7 @@ router.get("/current", async (req, res) => {
   });
 });
 
-router.post("/generate", async (req, res) => {
+router.post("/generate", validate(emptyBodySchema), async (req, res) => {
   const today = await currentLocalDate(req.userId);
   const priorDayRoutine = await ensureTodayRoutine(req.userId, today);
   const [[profile]] = await pool.execute(
@@ -52,13 +58,10 @@ router.post("/generate", async (req, res) => {
     [req.userId],
   );
   if (!profile)
-    return res
-      .status(409)
-      .json({
-        status: "error",
-        message:
-          "Save your skin profile before creating a personalized routine.",
-      });
+    return res.status(409).json({
+      status: "error",
+      message: "Save your skin profile before creating a personalized routine.",
+    });
   for (const key of ["concerns", "allergies", "goals"])
     if (typeof profile[key] === "string")
       profile[key] = JSON.parse(profile[key]);
@@ -116,17 +119,15 @@ router.post("/generate", async (req, res) => {
   } finally {
     connection.release();
   }
-  res
-    .status(201)
-    .json({
-      generated: true,
-      routine: {
-        id: routineId,
-        version: versionRow.next_version,
-        steps: generated.steps,
-      },
-      takesEffectNextDay: Boolean(priorDayRoutine),
-    });
+  res.status(201).json({
+    generated: true,
+    routine: {
+      id: routineId,
+      version: versionRow.next_version,
+      steps: generated.steps,
+    },
+    takesEffectNextDay: Boolean(priorDayRoutine),
+  });
 });
 
 router.get("/completions", async (req, res) => {
@@ -158,54 +159,55 @@ router.get("/completions", async (req, res) => {
   });
 });
 
-router.put("/completions/:stepId", async (req, res) => {
-  if (typeof req.body?.completed !== "boolean")
-    return res
-      .status(400)
-      .json({ status: "error", message: "completed must be true or false." });
-  const today = await currentLocalDate(req.userId);
-  const routine = await ensureTodayRoutine(req.userId, today);
-  if (!routine)
-    return res
-      .status(404)
-      .json({ status: "error", message: "No routine is active." });
-  const [eligibleRows] = await pool.execute(
-    "SELECT id FROM routine_steps WHERE id = ? AND routine_id = ?",
-    [req.params.stepId, routine.id],
-  );
-  if (!eligibleRows.length)
-    return res
-      .status(404)
-      .json({ status: "error", message: "Routine step not found." });
-  if (req.body.completed) {
-    await pool.execute(
-      "INSERT IGNORE INTO routine_completions (user_id, step_id, local_date) VALUES (?, ?, ?)",
-      [req.userId, req.params.stepId, today],
+router.put(
+  "/completions/:stepId",
+  validate(completionParamSchema, "params"),
+  validate(completionSchema),
+  async (req, res) => {
+    const today = await currentLocalDate(req.userId);
+    const routine = await ensureTodayRoutine(req.userId, today);
+    if (!routine)
+      return res
+        .status(404)
+        .json({ status: "error", message: "No routine is active." });
+    const [eligibleRows] = await pool.execute(
+      "SELECT id FROM routine_steps WHERE id = ? AND routine_id = ?",
+      [req.params.stepId, routine.id],
     );
-  } else {
-    await pool.execute(
-      "DELETE FROM routine_completions WHERE user_id = ? AND step_id = ? AND local_date = ?",
-      [req.userId, req.params.stepId, today],
+    if (!eligibleRows.length)
+      return res
+        .status(404)
+        .json({ status: "error", message: "Routine step not found." });
+    if (req.body.completed) {
+      await pool.execute(
+        "INSERT IGNORE INTO routine_completions (user_id, step_id, local_date) VALUES (?, ?, ?)",
+        [req.userId, req.params.stepId, today],
+      );
+    } else {
+      await pool.execute(
+        "DELETE FROM routine_completions WHERE user_id = ? AND step_id = ? AND local_date = ?",
+        [req.userId, req.params.stepId, today],
+      );
+    }
+    const [[summary]] = await pool.execute(
+      "SELECT COUNT(*) AS completed FROM routine_completions c JOIN routine_steps s ON s.id = c.step_id WHERE c.user_id = ? AND c.local_date = ? AND s.routine_id = ?",
+      [req.userId, today, routine.id],
     );
-  }
-  const [[summary]] = await pool.execute(
-    "SELECT COUNT(*) AS completed FROM routine_completions c JOIN routine_steps s ON s.id = c.step_id WHERE c.user_id = ? AND c.local_date = ? AND s.routine_id = ?",
-    [req.userId, today, routine.id],
-  );
-  const [[totalRow]] = await pool.execute(
-    "SELECT eligible_steps FROM routine_days WHERE user_id = ? AND local_date = ?",
-    [req.userId, today],
-  );
-  const total = totalRow?.eligible_steps || 0;
-  const count = Number(summary.completed);
-  res.json({
-    date: today,
-    completed: count,
-    eligible: total,
-    percentage: total ? Math.round((count / total) * 100) : 0,
-    qualifies: qualifiesDay(count, total),
-  });
-});
+    const [[totalRow]] = await pool.execute(
+      "SELECT eligible_steps FROM routine_days WHERE user_id = ? AND local_date = ?",
+      [req.userId, today],
+    );
+    const total = totalRow?.eligible_steps || 0;
+    const count = Number(summary.completed);
+    res.json({
+      date: today,
+      completed: count,
+      eligible: total,
+      percentage: total ? Math.round((count / total) * 100) : 0,
+      qualifies: qualifiesDay(count, total),
+    });
+  },
+);
 
 async function currentLocalDate(userId) {
   const [[row]] = await pool.execute(

@@ -8,9 +8,21 @@ type ApiOptions = Omit<RequestInit, "body"> & {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  errors?: Record<string, string>;
+  reference?: string;
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    errors?: Record<string, string>,
+    reference?: string,
+  ) {
     super(message);
     this.status = status;
+    this.code = code;
+    this.errors = errors;
+    this.reference = reference;
   }
 }
 
@@ -74,14 +86,28 @@ export async function apiRequest<T>(
   if (!response.ok) {
     if (response.status === 401 && path !== "/auth/login")
       window.dispatchEvent(new Event("skinwise:session-expired"));
-    let message = "Something went wrong. Please try again.";
+    let message =
+      response.status >= 500
+        ? "Something went wrong. Please try again shortly."
+        : "Something went wrong. Please try again.";
+    let code: string | undefined;
+    let errors: Record<string, string> | undefined;
+    let reference: string | undefined;
     try {
-      message =
-        ((await response.json()) as { message?: string }).message || message;
+      const payload = (await response.json()) as {
+        message?: string;
+        code?: string;
+        errors?: Record<string, string>;
+        requestId?: string;
+      };
+      message = payload.message || message;
+      code = payload.code;
+      errors = payload.errors;
+      reference = payload.requestId;
     } catch {
       /* empty error body */
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, code, errors, reference);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

@@ -8,6 +8,7 @@ import ProgressPage from "../features/progress/pages/ProgressPage";
 import NotFoundPage from "../features/home/pages/NotFoundPage";
 import RequireAuth from "./auth/RequireAuth";
 import AuthPage from "../features/auth/pages/AuthPage";
+import ForgotPasswordPage from "../features/auth/pages/ForgotPasswordPage";
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: "/skin-analysis", element: <SkinAnalysisPage /> },
       { path: "/login", element: <AuthPage mode="login" /> },
       { path: "/register", element: <AuthPage mode="register" /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
       {
         element: <RequireAuth />,
         children: [

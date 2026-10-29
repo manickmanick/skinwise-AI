@@ -26,8 +26,16 @@ export function useSkinAnalysis() {
       const result = await analyzeSkin(file, controller.signal);
       if (!controller.signal.aborted) setData(result);
     } catch (e: unknown) {
-      if (!controller.signal.aborted)
-        setError(e instanceof Error ? e.message : "Analysis failed.");
+      if (!controller.signal.aborted) {
+        const error = e as { message?: string; reference?: string };
+        setError(
+          error.reference
+            ? `${error.message || "Analysis failed."} Reference: ${error.reference}`
+            : e instanceof Error
+              ? e.message
+              : "Analysis failed.",
+        );
+      }
     } finally {
       if (controllerRef.current === controller) {
         controllerRef.current = null;

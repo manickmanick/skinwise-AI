@@ -13,9 +13,22 @@ export interface SkinAnalysisOutput {
   region?: string;
 }
 export interface SkinAnalysisResponse {
+  success: true;
   status: "success";
-  message: string;
   analysisId: string | null;
   image: SkinAnalysisImage;
   results: { output: SkinAnalysisOutput[] };
+}
+
+export interface SkinAnalysisTaskResponse {
+  success: true;
+  taskId: string;
+  status: "pending";
+  retryAfterMs: number;
+}
+
+export interface PendingSkinAnalysisResponse {
+  success: true;
+  status: "pending";
+  retryAfterMs: number;
 }

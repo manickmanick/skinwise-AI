@@ -15,7 +15,7 @@ export default function AnalysisStatus({
   if (loading)
     return (
       <div className="status-panel">
-        <LoadingSpinner label="Preparing your analysis…" />
+        <LoadingSpinner label="Analysis in progress…" />
         <p className="muted">
           Your image is being sent securely to the analysis provider. SkinWise
           does not retain guest photos.

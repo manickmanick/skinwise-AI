@@ -32,7 +32,7 @@ npm install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Set the database values and `YOUCAM_API_KEY` in `backend/.env`. Set `SESSION_SECRET` to a random secret of at least 32 bytes. Keep this file private; it is excluded from Git.
+Set the database values and `YOUCAM_API_KEY` in `backend/.env`. Set `SESSION_SECRET` and the separate `OTP_HASH_SECRET` to different random secrets of at least 32 bytes. For email recovery, configure SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM`) with a sender address authorized by your chosen SMTP provider. Use that provider's SMTP host and credentials; for port 587 use `SMTP_SECURE=false` (STARTTLS is required in production), and for port 465 use `SMTP_SECURE=true`. A sandbox SMTP account/mail-capture service is suitable for development. Recovery stays unavailable until these settings are configured. The request limits are configurable with `RECOVERY_IP_LIMIT`, `RECOVERY_IP_WINDOW_MS`, `RECOVERY_EMAIL_LIMIT`, `RECOVERY_EMAIL_WINDOW_MS`, `RECOVERY_RESEND_COOLDOWN_MS`, and `RECOVERY_OTP_MAX_ATTEMPTS`. Keep this file private; it is excluded from Git.
 
 Run the versioned database migrations and start the API:
 
@@ -62,11 +62,19 @@ From `backend/`:
 - `GET /api/health/live` checks process liveness.
 - `GET /api/health/ready` checks MySQL readiness.
 
-The first migration creates the server-side `sessions` table, accounts, preferences, profiles, analysis history, routine versions, and checklist records. Do not edit production schemas manually; add a versioned Knex migration instead.
+The core migration creates the server-side `sessions` table, accounts, preferences, profiles, analysis history, routine versions, and checklist records. A later migration adds hashed password-recovery OTP/reset authorization records. Do not edit production schemas manually; add a versioned Knex migration instead.
+
+## Password recovery
+
+Accounts are identified by their email address. Configure SMTP credentials and `OTP_HASH_SECRET` before enabling recovery; without them, recovery returns a service-unavailable error rather than claiming an email was sent. `POST /api/auth/forgot-password` returns a generic account-enumeration-safe message and a challenge ID. `POST /api/auth/verify-reset-otp` accepts that ID and a six-digit code; the server enforces a 120-second expiry, a five-attempt limit, and a per-account cooldown. Successful verification returns a one-use reset token with a ten-minute expiry. `POST /api/auth/reset-password` consumes that token, hashes the new password, and revokes active sessions. OTP values and reset tokens are never stored in plaintext or logged. A local SMTP sandbox/mail capture service is recommended for development; do not enable a development OTP bypass.
+
+New passwords use a versioned bcrypt plus SHA-256 pre-hash so the account can support 10–128 characters without bcrypt's 72-byte input truncation. Existing direct bcrypt hashes remain accepted at login and are replaced with the versioned hash when the user resets their password.
+
+After updating code, apply every migration with `npm run migrate` from `backend/`. Existing databases need the new password-recovery migration too. The app uses in-process IP/email throttling for the single-server MVP; use a shared rate-limit store before deploying multiple backend instances.
 
 ## Core flows
 
-- Guests can submit a JPEG or PNG photo, preview results and create an account. The backend validates image content, forwards the original bytes to YouCam and polls the provider task. Guest results are held only in the current browser page state.
+- Guests can submit a JPEG or PNG photo, preview results and create an account. `POST /api/skin-analyses` accepts multipart `image` and `consent=true`, validates image content, uploads the original bytes and returns `202 { taskId, status: "pending" }`. The browser polls `GET /api/skin-analyses/tasks/:taskId` every 10 seconds until it receives normalized results. Tasks are session-bound and held in process memory for up to 15 minutes; a backend restart during an active analysis loses that task, and multi-instance deployment needs shared task persistence. Guest results are held only in the current browser page state.
 - Signed-in users can save a self-reported profile, generate conservative morning/night routine steps, check off steps, view adherence and streaks, save analyses and compare compatible provider metrics.
 - Profile, routines, analyses and checklist history are scoped to the signed-in account. Mutating requests use a session-bound CSRF token.
 - UV guidance is optional. A saved city is used for the forecast, or the user can explicitly request a one-time browser location check. Precise browser coordinates are sent for that forecast request and are not saved by SkinWise. Forecasts are from [Open-Meteo](https://open-meteo.com/) and its [geocoding API](https://open-meteo.com/en/docs/geocoding-api).

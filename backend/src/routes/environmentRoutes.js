@@ -1,23 +1,26 @@
 import { Router } from "express";
 import { pool } from "../config/database.js";
 import { getUvForecast } from "../integrations/weather/openMeteoService.js";
+import { validate } from "../middleware/validate.js";
+import { uvQuerySchema } from "../validators/authSchemas.js";
 
 const router = Router();
-router.get("/uv", async (req, res) => {
+router.get("/uv", validate(uvQuerySchema, "query"), async (req, res) => {
   const [[pref]] = await pool.execute(
     "SELECT city FROM user_preferences WHERE user_id = ?",
     [req.userId],
   );
-  const city =
-    typeof req.query.city === "string" ? req.query.city.trim() : pref?.city;
-  const latitude = Number(req.query.latitude);
-  const longitude = Number(req.query.longitude);
-  const hasLatitude = req.query.latitude !== undefined;
-  const hasLongitude = req.query.longitude !== undefined;
+  const query = req.validatedQuery;
+  const city = query.city?.trim() || pref?.city;
+  const latitude = query.latitude;
+  const longitude = query.longitude;
+  const hasLatitude = query.latitude !== undefined;
+  const hasLongitude = query.longitude !== undefined;
   if (hasLatitude !== hasLongitude)
     return res.status(400).json({
-      status: "error",
+      success: false,
       message: "Provide both latitude and longitude.",
+      code: "VALIDATION_ERROR",
     });
   const coordinatesProvided =
     Number.isFinite(latitude) && Number.isFinite(longitude);

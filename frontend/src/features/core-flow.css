@@ -31,6 +31,27 @@
   background: white;
   color: var(--text);
 }
+.auth-form input[aria-invalid="true"] {
+  border-color: #b64036;
+  box-shadow: 0 0 0 0.15rem rgb(182 64 54 / 12%);
+}
+.field-error {
+  display: block;
+  color: #a8322a;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.auth-form input:focus-visible,
+.auth-form button:focus-visible,
+.auth-form a:focus-visible {
+  outline: 3px solid rgb(65 112 78 / 45%);
+  outline-offset: 2px;
+}
+.password-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .auth-form .app-button {
   margin-top: 0.5rem;
 }

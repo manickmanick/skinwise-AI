@@ -19,6 +19,7 @@ export async function getUvForecast({ city, latitude, longitude }) {
       forecast_days: "1",
       timezone: location.timezone || "auto",
     }).toString();
+
     const response = await fetch(weatherUrl, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -70,6 +71,7 @@ async function resolveLocation({ city, latitude, longitude }) {
     language: "en",
     format: "json",
   }).toString();
+  
   const response = await fetch(geoUrl, {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });

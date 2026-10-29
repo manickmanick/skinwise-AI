@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
-import { apiRequest } from "../../../lib/api";
+import { ApiError, apiRequest } from "../../../lib/api";
 import { useAuth } from "../../../app/auth/useAuth";
 import { useNavigate } from "react-router-dom";
 
@@ -59,6 +59,10 @@ export default function SkinProfilePage() {
   const [reviewing, setReviewing] = useState(false);
   const [uv, setUv] = useState<Uv | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const allergyRef = useRef<HTMLInputElement>(null);
+  const cityRef = useRef<HTMLInputElement>(null);
+  const timezoneRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     apiRequest<{
       profile: Profile | null;
@@ -81,6 +85,14 @@ export default function SkinProfilePage() {
     setSaved(false);
     setReviewing(false);
   }
+  function timezoneIssue(value: string) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+      return "";
+    } catch {
+      return "Enter a valid timezone, such as Asia/Kolkata.";
+    }
+  }
   function toggleList(key: "concerns" | "goals", item: string) {
     update(
       key,
@@ -93,11 +105,15 @@ export default function SkinProfilePage() {
     setBusy(true);
     setError(null);
     try {
+
       await apiRequest("/skin-profile", {
         method: "PUT",
         body: {
-          ...profile,
+          skinType: profile.skinType,
+          concerns: profile.concerns,
           allergies: profile.allergies,
+          sensitivity: profile.sensitivity,
+          goals: profile.goals,
           timezone,
           city: city.trim() || null,
         },
@@ -105,7 +121,21 @@ export default function SkinProfilePage() {
       setSaved(true);
       setReviewing(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save your profile.");
+      if (e instanceof ApiError && e.errors) {
+        const mapped = Object.fromEntries(
+          Object.entries(e.errors).map(([key, value]) => [
+            key.split(".")[0],
+            value,
+          ]),
+        );
+        setFieldErrors(mapped);
+        if (mapped.allergies) allergyRef.current?.focus();
+        else if (mapped.city) cityRef.current?.focus();
+        else if (mapped.timezone) timezoneRef.current?.focus();
+      } else
+        setError(
+          e instanceof Error ? e.message : "Couldn't save your profile.",
+        );
     } finally {
       setBusy(false);
     }
@@ -187,6 +217,23 @@ export default function SkinProfilePage() {
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const next: Record<string, string> = {};
+    if (profile.allergies.length > 20)
+      next.allergies = "List up to 20 items, separated by commas.";
+    else if (profile.allergies.some((item) => item.length > 80))
+      next.allergies = "Keep each item to 80 characters or fewer.";
+    if (city.length > 120)
+      next.city = "Keep the city name to 120 characters or fewer.";
+    const timezoneError = timezoneIssue(timezone);
+    if (timezoneError) next.timezone = timezoneError;
+    if (Object.keys(next).length) {
+      setFieldErrors(next);
+      if (next.allergies) allergyRef.current?.focus();
+      else if (next.city) cityRef.current?.focus();
+      else timezoneRef.current?.focus();
+      return;
+    }
+    setFieldErrors({});
     setReviewing(true);
     setError(null);
   }
@@ -210,7 +257,7 @@ export default function SkinProfilePage() {
         </div>
         <span className="pill">Saved to your account</span>
       </header>
-      <form className="profile-layout" onSubmit={submit}>
+      <form className="profile-layout" noValidate onSubmit={submit}>
         <div className="profile-main">
           <Card>
             <p className="eyebrow">01 / SKIN TYPE</p>
@@ -290,6 +337,7 @@ export default function SkinProfilePage() {
                 Known allergies or ingredients you want to avoid
               </label>
               <input
+                ref={allergyRef}
                 id="allergies"
                 value={allergyText}
                 onChange={(e) =>
@@ -298,14 +346,38 @@ export default function SkinProfilePage() {
                     e.target.value
                       .split(",")
                       .map((item) => item.trim())
-                      .filter(Boolean)
-                      .slice(0, 20),
+                      .filter(Boolean),
                   )
                 }
                 maxLength={1600}
+                aria-invalid={Boolean(fieldErrors.allergies)}
+                aria-describedby={
+                  fieldErrors.allergies ? "allergies-error" : "allergies-help"
+                }
+                onBlur={() => {
+                  const issue =
+                    profile.allergies.length > 20
+                      ? "List up to 20 items, separated by commas."
+                      : profile.allergies.some((item) => item.length > 80)
+                        ? "Keep each item to 80 characters or fewer."
+                        : "";
+                  setFieldErrors((current) => ({
+                    ...current,
+                    allergies: issue,
+                  }));
+                }}
                 placeholder="Separate items with commas"
               />
-              <small className="muted">
+              {fieldErrors.allergies && (
+                <small
+                  id="allergies-error"
+                  className="field-error"
+                  role="alert"
+                >
+                  {fieldErrors.allergies}
+                </small>
+              )}
+              <small id="allergies-help" className="muted">
                 Routine steps use categories, not brand ingredients. Check
                 product labels and avoid anything you list here.
               </small>
@@ -322,24 +394,61 @@ export default function SkinProfilePage() {
             <div className="form-field">
               <label htmlFor="city">City (optional)</label>
               <input
+                ref={cityRef}
                 id="city"
                 maxLength={120}
                 value={city}
                 onChange={(e) => {
                   setCity(e.target.value);
                   setUv(null);
+                  setFieldErrors((current) => ({ ...current, city: "" }));
                 }}
+                aria-invalid={Boolean(fieldErrors.city)}
+                aria-describedby={fieldErrors.city ? "city-error" : undefined}
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    city:
+                      city.length > 120
+                        ? "Keep the city name to 120 characters or fewer."
+                        : "",
+                  }))
+                }
                 placeholder="e.g. Bengaluru"
               />
+              {fieldErrors.city && (
+                <small id="city-error" className="field-error" role="alert">
+                  {fieldErrors.city}
+                </small>
+              )}
             </div>
             <div className="form-field">
               <label htmlFor="timezone">Your timezone</label>
               <input
+                ref={timezoneRef}
                 id="timezone"
                 value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
+                onChange={(e) => {
+                  setTimezone(e.target.value);
+                  setFieldErrors((current) => ({ ...current, timezone: "" }));
+                }}
+                aria-invalid={Boolean(fieldErrors.timezone)}
+                aria-describedby={
+                  fieldErrors.timezone ? "timezone-error" : undefined
+                }
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    timezone: timezoneIssue(timezone),
+                  }))
+                }
                 placeholder="Asia/Kolkata"
               />
+              {fieldErrors.timezone && (
+                <small id="timezone-error" className="field-error" role="alert">
+                  {fieldErrors.timezone}
+                </small>
+              )}
             </div>
             <div className="analyze-actions">
               <Button
@@ -426,7 +535,7 @@ export default function SkinProfilePage() {
                 <strong>{profile.allergies.length}</strong>
               </div>
             </div>
-            {error && (
+            {error && !Object.values(fieldErrors).some(Boolean) && (
               <p className="form-error" role="alert">
                 {error}
               </p>

@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
-
 dotenv.config();
+
+import { connectRedis } from "./config/redis.js";
 
 if (
   process.env.NODE_ENV === "production" &&
@@ -14,7 +15,10 @@ if (
 
 const { default: app } = await import("./app.js");
 
+
 const PORT = Number(process.env.PORT) || 3000;
+
+await connectRedis();
 
 app.listen(PORT, () => {
   console.log(`SkinWise AI backend: http://localhost:${PORT}`);
